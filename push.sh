@@ -1,3 +1,3 @@
 git add .
-git commit -m"add push.sh"
+git commit -m"download static picture"
 git push

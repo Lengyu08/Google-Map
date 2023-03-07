@@ -6,7 +6,7 @@ import java.io.IOException;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
-import java.util.ArrayList;
+import java.util.*;
 
 /**
  * Graph for storing all of the intersection (vertex) and road (edge) information.
@@ -20,6 +20,11 @@ import java.util.ArrayList;
 public class GraphDB {
     /** Your instance variables for storing the graph. You should consider
      * creating helper classes, e.g. Node, Edge, etc. */
+
+    private final Map<Long, Location> locations = new HashMap<>();
+    private final Map<Long, Node> nodes = new HashMap<>();
+    private final Map<String, List<Long>> names = new HashMap<>();
+    private final TrieST<Long> st = new TrieST<>();
 
     /**
      * Example constructor shows how to create and start an XML parser.
@@ -58,6 +63,13 @@ public class GraphDB {
      */
     private void clean() {
         // TODO: Your code here.
+        Iterator<Map.Entry<Long, Node>> nodes_iterator = nodes.entrySet().iterator();
+        while (nodes_iterator.hasNext()) {
+            Map.Entry<Long, Node> item = nodes_iterator.next();
+            if (item.getValue().adj.isEmpty()) {
+                nodes_iterator.remove();
+            }
+        }
     }
 
     /**
@@ -66,7 +78,7 @@ public class GraphDB {
      */
     Iterable<Long> vertices() {
         //YOUR CODE HERE, this currently returns only an empty list.
-        return new ArrayList<Long>();
+        return nodes.keySet();
     }
 
     /**
@@ -75,7 +87,8 @@ public class GraphDB {
      * @return An iterable of the ids of the neighbors of v.
      */
     Iterable<Long> adjacent(long v) {
-        return null;
+        validateVertex(v);
+        return nodes.get(v).adj;
     }
 
     /**
@@ -136,7 +149,17 @@ public class GraphDB {
      * @return The id of the node in the graph closest to the target.
      */
     long closest(double lon, double lat) {
-        return 0;
+        double shortest = Double.MAX_VALUE;
+        long ret = -117;
+        for (long id : nodes.keySet()) {
+            Node x = nodes.get(id);
+            double current_dist = distance(lon(id), lat(id), lon, lat);
+            if (current_dist < shortest) {
+                shortest = current_dist;
+                ret = id;
+            }
+        }
+        return ret;
     }
 
     /**
@@ -145,7 +168,13 @@ public class GraphDB {
      * @return The longitude of the vertex.
      */
     double lon(long v) {
-        return 0;
+        validateVertex(v);
+        return nodes.get(v).lon;
+    }
+
+    double locLon(long v) {
+        validateLocation(v);
+        return locations.get(v).lon;
     }
 
     /**
@@ -154,6 +183,164 @@ public class GraphDB {
      * @return The latitude of the vertex.
      */
     double lat(long v) {
-        return 0;
+        validateVertex(v);
+        return nodes.get(v).lat;
+    }
+
+    double locLat(long v) {
+        validateLocation(v);
+        return locations.get(v).lat;
+    }
+
+    /**
+     * Gets the tagged name of a vertex.
+     * @param v The id of the vertex.
+     * @return The tagged name of the vertex.
+     */
+    String getName(long v) {
+        validateLocation(v);
+        return locations.get(v).name;
+    }
+
+    /**
+     * Adds node to the graph.
+     * @param id The id of the node
+     * @param lon Longitude of the node
+     * @param lat Latitude of the node
+     */
+    void addNode(long id, double lon, double lat) {
+        Node node = new Node(lon, lat);
+        nodes.put(id, node);
+    }
+
+    /**
+     * Keeps track of a new location with a name.
+     * @param id id of the location
+     * @param lon longitude of the node
+     * @param lat latitude of the location
+     * @param name name of the location
+     */
+    void addLocation(long id, double lon, double lat, String name) {
+        Location loc = new Location(lon, lat, name);
+        locations.put(id, loc);
+    }
+
+    /**
+     * Adds edge v-w to this graph.
+     * @param v one vertex in the edge
+     * @param w another vertex in the edge
+     */
+    void addEdge(long v, long w) {
+        validateVertex(v);
+        validateVertex(w);
+        nodes.get(v).adj.add(w);
+        nodes.get(w).adj.add(v);
+    }
+
+    /**
+     * Adds a location name to locations map and Trie.
+     * @param id id of node for the given location name
+     * @param locationName node's cleaned name
+     */
+    void addName(long id, double lon, double lat, String locationName) {
+        String cleanedName = cleanString(locationName);
+
+        if (!names.containsKey(cleanedName)) {
+            names.put(cleanedName, new LinkedList<>());
+        }
+        names.get(cleanedName).add(id);
+        addLocation(id, lon, lat, locationName);
+        st.put(cleanedName, id);
+    }
+
+    /**
+     * Adds all edges in a way.
+     * @param way list of nodes
+     */
+    void addWay(List<Long> way, String wayName) {
+        nodes.get(way.get(0)).wayNames.add(wayName);
+        for (int i = 1; i < way.size(); i++) {
+            addEdge(way.get(i - 1), way.get(i));
+            nodes.get(way.get(i)).wayNames.add(wayName);
+        }
+    }
+
+    /**
+     * @param v vertex in the way
+     * @return set of ways this vertex belongs to
+     */
+    Set<String> getWayNames(long v) {
+        Set<String> result = new HashSet<>();
+        for (String way : nodes.get(v).wayNames) {
+            result.add(way);
+        }
+        return result;
+    }
+
+    /**
+     * Returns a list of keys that share a prefix.
+     * @param prefix prefix entered in search box
+     * @return list of keys
+     */
+    public List<String> keysWithPrefix(String prefix) {
+        List<String> result = new LinkedList<>();
+        for (String key : st.keysWithPrefix(cleanString(prefix))) {
+            Long id = names.get(key).get(0);
+            String fullName = getName(id);
+            result.add(fullName);
+        }
+        return result;
+    }
+
+    public List<Long> getLocations(String locationName) {
+        List<Long> result = new LinkedList<>();
+        for (long v : names.get(cleanString(locationName))) {
+            result.add(v);
+        }
+        return result;
+    }
+
+    /**
+     * throw an IllegalArgumentException if vertex not in graph
+     * @param v vertex to validate
+     */
+    private void validateVertex(long v) {
+        if (!nodes.containsKey(v)) {
+            throw new IllegalArgumentException("Vertex " + v + " is not in the graph.");
+        }
+    }
+
+    private void validateLocation(long v) {
+        if (!locations.containsKey(v)) {
+            throw new IllegalArgumentException("Vertex " + v + " does not have a name.");
+        }
+    }
+
+    // Graph node that stores information about an OpenStreetMaps node
+    private class Node {
+        double lon;
+        double lat;
+        List<Long> adj;
+        Set<String> wayNames;
+
+        Node(double lon, double lat) {
+            this.lon = lon;
+            this.lat = lat;
+            adj = new LinkedList<>();
+            wayNames = new HashSet<>();
+        }
+    }
+
+    // Class to store information about locations with names
+    private class Location {
+        double lon;
+        double lat;
+        String name = "";
+
+        Location(double lon, double lat, String name) {
+            this.lon = lon;
+            this.lat = lat;
+            this.name = name;
+        }
     }
 }

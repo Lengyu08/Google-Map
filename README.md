@@ -50,3 +50,51 @@ You can then use the mvn compile and mvn exec:java -Dexec.mainClass="MapServer" 
 after patching your pom.xml to include src/static as a sources root. 
 Do so by renaming pom_alternate.xml to pom.xml. You can also run the tests with mvn test. 
 ```
+
+
+
+#### The getMapRaster Method
+
+
+
+```mermaid
+graph LR;
+		A(params)--pass as argument-->B(getMapRaster)
+		B--which tiles to display-->C(Query Results Map<String, Object>)
+		D(Map--String, Double)-->getMapRaster-->E(Map--String, Object)
+```
+
+名词
+
+```
+longitude: 经度 南北
+latitude: 纬度 东西
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
